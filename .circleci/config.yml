@@ -48,7 +48,7 @@ jobs:
     steps:
       - attach_workspace:
           at: buildevents
-      - run: buildevents watch $CIRCLE_WORKFLOW_ID
+      - run: buildevents/bin/buildevents watch $CIRCLE_WORKFLOW_ID
   # test:
   #   steps:
   #     - with_job_span:
