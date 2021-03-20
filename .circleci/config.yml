@@ -39,11 +39,11 @@ jobs:
       - attach_workspace:
           at: buildevents
       - run: buildevents watch $CIRCLE_WORKFLOW_ID
-  test:
-    steps:
-      - with_job_span:
-          steps:
-            - run: buildevents cmd $CIRCLE_WORKFLOW_ID $STEP_SPAN_ID go-tests -- sleep 2
+  # test:
+  #   steps:
+  #     - with_job_span:
+  #         steps:
+  #           - run: buildevents cmd $CIRCLE_WORKFLOW_ID $STEP_SPAN_ID go-tests -- sleep 2
   build:
     docker: 
       - image: cimg/node:14.10.1 # the primary container, where your job's commands are run
@@ -65,9 +65,9 @@ workflows:
       - send_trace:
           requires:
             - setup
-      - test:
-          requires:
-            - setup
+      # - test:
+      #     requires:
+      #       - setup
       - build:
           requires:
-            - test
+            - setup
