@@ -23,6 +23,11 @@ commands:
 
 jobs:
   setup:
+    docker: 
+      - image: cimg/node:14.10.1 # the primary container, where your job's commands are run
+        auth:
+          username: $DOCKERHUB_USERNAME
+          password: $DOCKERHUB_PASSWORD  # context / project UI env-var reference
     steps:
       - run: |
           mkdir -p buildevents/bin
@@ -35,6 +40,11 @@ jobs:
             - build_start
             - bin/buildevents
   send_trace:
+    docker: 
+      - image: cimg/node:14.10.1 # the primary container, where your job's commands are run
+        auth:
+          username: $DOCKERHUB_USERNAME
+          password: $DOCKERHUB_PASSWORD  # context / project UI env-var reference
     steps:
       - attach_workspace:
           at: buildevents
