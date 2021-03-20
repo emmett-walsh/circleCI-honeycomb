@@ -1,5 +1,49 @@
 version: 2.1
+
+# factored out start/finish_job_span commands here so we don't have every one of our build jobs duplicating them
+commands:
+  with_job_span:
+    parameters:
+      steps:
+        type: steps
+    steps:
+      - attach_workspace:
+          at: buildevents
+      - run:
+          name: starting span for job
+          command: |
+            echo "STEP_START=$(date +%s)" >> $BASH_ENV
+            echo "STEP_SPAN_ID=$(echo $CIRCLE_JOB | sum | cut -f 1 -d \ )" >> $BASH_ENV
+      - run: echo "PATH=$PATH:buildevents/bin/" >> $BASH_ENV
+      - steps: << parameters.steps >>
+      - run:
+          name: finishing span for job
+          command: buildevents step $CIRCLE_WORKFLOW_ID $STEP_SPAN_ID $STEP_START $CIRCLE_JOB
+          when: always
+
 jobs:
+  setup:
+    steps:
+      - run: |
+          mkdir -p buildevents/bin
+          date +%s > buildevents/build_start
+      - run: curl -L -o buildevents https://github.com/honeycombio/buildevents/releases/latest/download/buildevents-linux-amd64
+      - run: chmod 755 buildevents
+      - persist_to_workspace:
+          root: buildevents
+          paths:
+            - build_start
+            - bin/buildevents
+  send_trace:
+    steps:
+      - attach_workspace:
+          at: buildevents
+      - run: buildevents watch $CIRCLE_WORKFLOW_ID
+  test:
+    steps:
+      - with_job_span:
+          steps:
+            - run: buildevents cmd $CIRCLE_WORKFLOW_ID $STEP_SPAN_ID go-tests -- sleep 2
   build:
     docker: 
       - image: cimg/node:14.10.1 # the primary container, where your job's commands are run
@@ -7,5 +51,23 @@ jobs:
           username: $DOCKERHUB_USERNAME
           password: $DOCKERHUB_PASSWORD  # context / project UI env-var reference
     steps:
-      - checkout # check out the code in the project directory
-      - run: echo "hello world" # run the `echo` command
+      - with_job_span:
+          steps:
+            - checkout # check out the code in the project directory
+            - run: echo "hello world" # run the `echo` command
+            - run: echo "sleeping for a bit"
+            - run: buildevents cmd $CIRCLE_WORKFLOW_ID $STEP_SPAN_ID go-tests -- sleep 2
+
+workflows:
+  test-and-build:
+    jobs:
+      - setup
+      - send_trace:
+          requires:
+            - setup
+      - test:
+          requires:
+            - setup
+      - build:
+          requires:
+            - test
