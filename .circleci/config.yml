@@ -27,8 +27,8 @@ jobs:
       - run: |
           mkdir -p buildevents/bin
           date +%s > buildevents/build_start
-      - run: curl -L -o buildevents https://github.com/honeycombio/buildevents/releases/latest/download/buildevents-linux-amd64
-      - run: chmod 755 buildevents
+      - run: go get github.com/honeycombio/buildevents
+      - run: cp $GOPATH/bin/buildevents buildevents/bin/
       - persist_to_workspace:
           root: buildevents
           paths:
@@ -39,24 +39,18 @@ jobs:
       - attach_workspace:
           at: buildevents
       - run: buildevents watch $CIRCLE_WORKFLOW_ID
-  # test:
-  #   steps:
-  #     - with_job_span:
-  #         steps:
-  #           - run: buildevents cmd $CIRCLE_WORKFLOW_ID $STEP_SPAN_ID go-tests -- sleep 2
-  build:
-    docker: 
-      - image: cimg/node:14.10.1 # the primary container, where your job's commands are run
-        auth:
-          username: $DOCKERHUB_USERNAME
-          password: $DOCKERHUB_PASSWORD  # context / project UI env-var reference
+  test:
     steps:
       - with_job_span:
           steps:
-            - checkout # check out the code in the project directory
-            - run: echo "hello world" # run the `echo` command
-            - run: echo "sleeping for a bit"
-            - run: buildevents cmd $CIRCLE_WORKFLOW_ID $STEP_SPAN_ID go-tests -- sleep 2
+            - run: buildevents cmd $CIRCLE_WORKFLOW_ID $STEP_SPAN_ID go-tests -- sleep 3
+            - run: buildevents cmd $CIRCLE_WORKFLOW_ID $STEP_SPAN_ID js-tests -- sleep 4
+  build:
+    steps:
+      - with_job_span:
+          steps:
+            - run: mkdir artifacts
+            - run: buildevents cmd $CIRCLE_WORKFLOW_ID $STEP_SPAN_ID build -- sleep 2
 
 workflows:
   test-and-build:
@@ -65,9 +59,9 @@ workflows:
       - send_trace:
           requires:
             - setup
-      # - test:
-      #     requires:
-      #       - setup
-      - build:
+      - test:
           requires:
             - setup
+      - build:
+          requires:
+            - test
