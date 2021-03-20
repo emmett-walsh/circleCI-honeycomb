@@ -1,25 +1,7 @@
 version: 2.1
 
-# factored out start/finish_job_span commands here so we don't have every one of our build jobs duplicating them
-commands:
-  with_job_span:
-    parameters:
-      steps:
-        type: steps
-    steps:
-      - attach_workspace:
-          at: buildevents
-      - run:
-          name: starting span for job
-          command: |
-            echo "STEP_START=$(date +%s)" >> $BASH_ENV
-            echo "STEP_SPAN_ID=$(echo $CIRCLE_JOB | sum | cut -f 1 -d \ )" >> $BASH_ENV
-      - run: echo "PATH=$PATH:buildevents/bin/" >> $BASH_ENV
-      - steps: << parameters.steps >>
-      - run:
-          name: finishing span for job
-          command: buildevents step $CIRCLE_WORKFLOW_ID $STEP_SPAN_ID $STEP_START $CIRCLE_JOB
-          when: always
+orbs:
+  buildevents: honeycombio/buildevents@0.2.7
 
 jobs:
   setup:
@@ -29,26 +11,16 @@ jobs:
           username: $DOCKERHUB_USERNAME
           password: $DOCKERHUB_PASSWORD  # context / project UI env-var reference
     steps:
-      - run: |
-          mkdir -p buildevents/bin
-          date +%s > buildevents/build_start
-      - run: curl -L -o buildevents/bin/buildevents https://github.com/honeycombio/buildevents/releases/latest/download/buildevents-linux-amd64
-      - run: chmod 755 buildevents
-      - persist_to_workspace:
-          root: buildevents
-          paths:
-            - build_start
-            - bin/buildevents
-  send_trace:
+      - buildevents/start_trace
+  watch:
     docker: 
       - image: cimg/node:14.10.1 # the primary container, where your job's commands are run
         auth:
           username: $DOCKERHUB_USERNAME
           password: $DOCKERHUB_PASSWORD  # context / project UI env-var reference
     steps:
-      - attach_workspace:
-          at: buildevents
-      - run: buildevents/bin/buildevents watch $CIRCLE_WORKFLOW_ID
+      - buildevents/watch_build_and_finish
+
   test:
     docker: 
       - image: cimg/node:14.10.1 # the primary container, where your job's commands are run
@@ -56,9 +28,11 @@ jobs:
           username: $DOCKERHUB_USERNAME
           password: $DOCKERHUB_PASSWORD  # context / project UI env-var reference
     steps:
-      - with_job_span:
+      - buildevents/with_job_span:
           steps:
-            - run: buildevents cmd $CIRCLE_WORKFLOW_ID $STEP_SPAN_ID go-tests -- sleep 2
+            - checkout
+            - run: sleep 2
+
   build:
     docker: 
       - image: cimg/node:14.10.1 # the primary container, where your job's commands are run
@@ -66,15 +40,16 @@ jobs:
           username: $DOCKERHUB_USERNAME
           password: $DOCKERHUB_PASSWORD  # context / project UI env-var reference
     steps:
-      - checkout # check out the code in the project directory
-      - run: echo "sleeping for a bit"
-      - run: sleep 2
+      - buildevents/with_job_span:
+          steps:
+            - checkout
+            - run: sleep 5
 
 workflows:
   test-and-build:
     jobs:
       - setup
-      - send_trace:
+      - watch:
           requires:
             - setup
       - test:
