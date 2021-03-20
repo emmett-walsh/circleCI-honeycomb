@@ -52,11 +52,11 @@ jobs:
           password: $DOCKERHUB_PASSWORD  # context / project UI env-var reference
     steps:
       - with_job_span:
-          steps:
-            - checkout # check out the code in the project directory
-            - run: echo "hello world" # run the `echo` command
-            - run: echo "sleeping for a bit"
-            - run: buildevents cmd $CIRCLE_WORKFLOW_ID $STEP_SPAN_ID go-tests -- sleep 2
+        steps:
+          - checkout # check out the code in the project directory
+          - run: echo "hello world" # run the `echo` command
+          - run: echo "sleeping for a bit"
+          - run: buildevents cmd $CIRCLE_WORKFLOW_ID $STEP_SPAN_ID go-tests -- sleep 2
 
 workflows:
   test-and-build:
